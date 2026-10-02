@@ -217,7 +217,17 @@ export const BASE_ITEMS: Record<string, Omit<Item, 'id'>> = {
     value: 15,
     icon: 'potion_blue',
     manaAmount: 8,
-    effect: 'heal'
+    effect: 'mana'
+  },
+  mana_potion_large: {
+    name: 'Ramuan Mana Murni',
+    description: 'Memulihkan 16 MP untuk kelangsungan sihir berkelanjutan.',
+    type: 'consumable',
+    rarity: 'uncommon',
+    value: 35,
+    icon: 'potion_blue_big',
+    manaAmount: 16,
+    effect: 'mana'
   },
   bomb_scroll: {
     name: 'Bom Peledak Goblin',
@@ -309,3 +319,61 @@ export function getRandomChestLoot(floor: number): Item {
   const pool = ['assassin_blade', 'paladin_mace', 'dragon_scale', 'ring_of_shadows'];
   return createItem(pool[Math.floor(Math.random() * pool.length)]);
 }
+
+export function getMerchantStock(floor: number): Item[] {
+  const stock: Item[] = [];
+
+  // 1. Guaranteed Potions: HP and MP
+  if (floor <= 3) {
+    stock.push(createItem('health_potion_minor'));
+    stock.push(createItem('mana_potion'));
+  } else if (floor <= 6) {
+    stock.push(createItem('health_potion_large'));
+    stock.push(createItem('mana_potion_large'));
+  } else {
+    stock.push(createItem('health_potion_large'));
+    stock.push(createItem('mana_potion_large'));
+    stock.push(createItem('full_elixir'));
+  }
+
+  // 2. Weapon appropriate for floor
+  if (floor <= 2) {
+    stock.push(createItem('iron_sword'));
+  } else if (floor <= 4) {
+    stock.push(createItem('steel_broadsword'));
+  } else if (floor <= 7) {
+    stock.push(createItem(Math.random() > 0.5 ? 'assassin_blade' : 'paladin_mace'));
+  } else {
+    stock.push(createItem(Math.random() > 0.5 ? 'flamebrand' : 'void_reaver'));
+  }
+
+  // 3. Armor appropriate for floor
+  if (floor <= 3) {
+    stock.push(createItem('chainmail_vest'));
+  } else if (floor <= 6) {
+    stock.push(createItem('knight_plate'));
+  } else {
+    stock.push(createItem(Math.random() > 0.5 ? 'dragon_scale' : 'aegis_immortal'));
+  }
+
+  // 4. Tactical Consumables & Accessories
+  const tacticalPool = ['bomb_scroll', 'teleport_scroll', 'copper_ring', 'berserker_charm'];
+  if (floor >= 4) {
+    tacticalPool.push('ring_of_shadows', 'strength_tonic', 'agility_tonic');
+  }
+  if (floor >= 7) {
+    tacticalPool.push('titan_heart', 'dungeon_master_ring');
+  }
+
+  const pickTactical = tacticalPool[Math.floor(Math.random() * tacticalPool.length)] as keyof typeof BASE_ITEMS;
+  stock.push(createItem(pickTactical));
+
+  // 5. Bonus utility item
+  if (floor >= 3 && Math.random() > 0.3) {
+    const extraPick = Math.random() > 0.5 ? 'strength_tonic' : 'bomb_scroll';
+    stock.push(createItem(extraPick));
+  }
+
+  return stock;
+}
+

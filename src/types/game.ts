@@ -19,7 +19,20 @@ export interface Item {
   // Consumable effects
   healAmount?: number;
   manaAmount?: number;
-  effect?: 'heal' | 'full_heal' | 'bomb' | 'teleport' | 'str_boost' | 'agi_boost';
+  effect?: 'heal' | 'mana' | 'full_heal' | 'bomb' | 'teleport' | 'str_boost' | 'agi_boost';
+}
+
+export type SkillType = 'cleave' | 'fireball' | 'heal' | 'thunder';
+
+export interface Skill {
+  id: string;
+  name: string;
+  description: string;
+  mpCost: number;
+  icon: string;
+  type: SkillType;
+  shortcut: string;
+  range?: number;
 }
 
 export interface PlayerStats {
@@ -92,12 +105,22 @@ export interface Shrine {
   name: string;
 }
 
+export interface Merchant {
+  id: string;
+  x: number;
+  y: number;
+  name: string;
+  greeting?: string;
+  stock: Item[];
+}
+
 export interface LevelData {
   floor: number;
   walls: TileCoordinate[];
   enemies: Enemy[];
   chests: Chest[];
   shrines: Shrine[];
+  merchant?: Merchant | null;
   exit: TileCoordinate;
 }
 
@@ -106,7 +129,7 @@ export interface FloatingText {
   x: number;
   y: number;
   text: string;
-  type: 'damage' | 'crit' | 'heal' | 'dodge' | 'xp' | 'gold' | 'info';
+  type: 'damage' | 'crit' | 'heal' | 'mana' | 'magic' | 'dodge' | 'xp' | 'gold' | 'info';
 }
 
 export interface CombatLog {

@@ -24,6 +24,11 @@ export const FloatingTextViewer: React.FC<Props> = ({ floatingTexts }) => {
         } else if (item.type === 'heal') {
           colorClass = 'text-emerald-400 font-bold';
           prefix = '+';
+        } else if (item.type === 'mana') {
+          colorClass = 'text-cyan-400 font-bold';
+          prefix = '+';
+        } else if (item.type === 'magic') {
+          colorClass = 'text-fuchsia-300 font-extrabold text-[10px]';
         } else if (item.type === 'dodge') {
           colorClass = 'text-cyan-300 font-semibold';
         } else if (item.type === 'xp') {

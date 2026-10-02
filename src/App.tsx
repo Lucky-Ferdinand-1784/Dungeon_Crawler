@@ -7,18 +7,22 @@ import type {
   CombatLog,
   Item,
   TileCoordinate,
-  Enemy
+  Enemy,
+  Skill
 } from './types/game';
 import { generateLevel, GRID_SIZE } from './utils/dungeonGenerator';
 import { createItem } from './data/items';
+import { PLAYER_SKILLS } from './data/skills';
 import { sfx } from './utils/audio';
 
 import { HUD } from './components/HUD';
 import { DungeonGrid } from './components/DungeonGrid';
 import { Controls } from './components/Controls';
+import { SkillBar } from './components/SkillBar';
 import { CombatLogBox } from './components/CombatLogBox';
 import { InventoryModal } from './components/InventoryModal';
 import { CharacterModal } from './components/CharacterModal';
+import { ShopModal } from './components/ShopModal';
 import { GameOverModal } from './components/GameOverModal';
 import { VictoryModal } from './components/VictoryModal';
 
@@ -64,6 +68,7 @@ export default function App() {
   const [isVictoryModalOpen, setIsVictoryModalOpen] = useState<boolean>(false);
   const [isInventoryOpen, setIsInventoryOpen] = useState<boolean>(false);
   const [isCharacterOpen, setIsCharacterOpen] = useState<boolean>(false);
+  const [isShopOpen, setIsShopOpen] = useState<boolean>(false);
   const [isMuted, setIsMuted] = useState<boolean>(false);
   const [isBgmOn, setIsBgmOn] = useState<boolean>(false);
   const [isCrtOn, setIsCrtOn] = useState<boolean>(true);
@@ -178,6 +183,7 @@ export default function App() {
     setLevelData(generateLevel(1));
     setIsGameOver(false);
     setIsVictoryModalOpen(false);
+    setIsShopOpen(false);
     setFloatingTexts([]);
     setCombatLogs([]);
     addLog('Dungeon baru dimulai! Taklukkan kedalaman lantai!', 'system');
@@ -276,7 +282,7 @@ export default function App() {
 
   // Player Movement & Combat Handler
   const movePlayer = useCallback((dx: number, dy: number) => {
-    if (isGameOver || isVictoryModalOpen || isInventoryOpen || isCharacterOpen) return;
+    if (isGameOver || isVictoryModalOpen || isInventoryOpen || isCharacterOpen || isShopOpen) return;
     sfx.init();
 
     const newX = player.x + dx;
@@ -284,6 +290,14 @@ export default function App() {
 
     // Boundary & Wall Collision
     if (levelData.walls.some(w => w.x === newX && w.y === newY)) {
+      return;
+    }
+
+    // --- MERCHANT ENCOUNTER ---
+    if (levelData.merchant && levelData.merchant.x === newX && levelData.merchant.y === newY) {
+      sfx.playCoin();
+      setIsShopOpen(true);
+      addLog(`🛒 Berjumpa dengan ${levelData.merchant.name}! Membuka toko...`, 'system');
       return;
     }
 
@@ -486,6 +500,7 @@ export default function App() {
     isVictoryModalOpen, 
     isInventoryOpen, 
     isCharacterOpen,
+    isShopOpen,
     getPlayerCombatStats, 
     checkLevelUp, 
     executeEnemyTurn, 
@@ -506,6 +521,12 @@ export default function App() {
       sfx.playHeal();
       addFloatingText(player.x, player.y, `+${heal} HP`, 'heal');
       addLog(`🧪 Meminum [${item.name}]! Memulihkan ${heal} HP.`, 'heal');
+    } else if (item.effect === 'mana') {
+      const mana = item.manaAmount || 8;
+      updatedPlayer.mp = Math.min(updatedPlayer.maxMp, updatedPlayer.mp + mana);
+      sfx.playMagic();
+      addFloatingText(player.x, player.y, `+${mana} MP`, 'mana');
+      addLog(`🧪 Meminum [${item.name}]! Memulihkan ${mana} MP.`, 'item');
     } else if (item.effect === 'full_heal') {
       updatedPlayer.hp = updatedPlayer.maxHp;
       updatedPlayer.mp = updatedPlayer.maxMp;
@@ -553,6 +574,10 @@ export default function App() {
       updatedPlayer.level = lvlRes.newLevel;
       updatedPlayer.xpToNextLevel = lvlRes.newXpReq;
       updatedPlayer.statPoints = lvlRes.newStatPoints;
+      if (lvlRes.leveledUp) {
+        updatedPlayer.hp = updatedPlayer.maxHp;
+        updatedPlayer.mp = updatedPlayer.maxMp;
+      }
     } else if (item.effect === 'teleport') {
       sfx.playStairs();
       // Find empty tile
@@ -603,9 +628,287 @@ export default function App() {
     handleUseItem(potion);
   }, [player.inventory, addLog, handleUseItem]);
 
+  // Quick Mana shortcut ('M')
+  const handleQuickMana = useCallback(() => {
+    const potionIdx = player.inventory.findIndex(item => item.effect === 'mana' || item.effect === 'full_heal');
+    if (potionIdx === -1) {
+      addLog('⚠️ Tidak ada ramuan mana di dalam tas!', 'system');
+      return;
+    }
+    const potion = player.inventory[potionIdx];
+    handleUseItem(potion);
+  }, [player.inventory, addLog, handleUseItem]);
+
+  // Active Skill Handler (Consumes MP)
+  const handleUseSkill = useCallback((skill: Skill) => {
+    if (isGameOver || isVictoryModalOpen || isInventoryOpen || isCharacterOpen || isShopOpen) return;
+    sfx.init();
+
+    if (player.mp < skill.mpCost) {
+      sfx.playError();
+      addLog(`⚠️ MP tidak mencukupi untuk menggunakan [${skill.name}]! Butuh ${skill.mpCost} MP.`, 'system');
+      return;
+    }
+
+    let updatedPlayer = { ...player, mp: player.mp - skill.mpCost };
+    let currentEnemies = [...levelData.enemies];
+    const { totalAtk } = getPlayerCombatStats(player);
+
+    addFloatingText(player.x, player.y, `-${skill.mpCost} MP`, 'mana');
+
+    if (skill.type === 'cleave') {
+      // Cleave: deals 1.8x ATK to all adjacent enemies
+      sfx.playCrit();
+      setIsShaking(true);
+      setTimeout(() => setIsShaking(false), 240);
+
+      const cleaveDmg = Math.round(totalAtk * 1.8);
+      let hitCount = 0;
+      let slainCount = 0;
+      let totalGold = 0;
+      let totalXp = 0;
+
+      const remainingEnemies: Enemy[] = [];
+      currentEnemies.forEach(enemy => {
+        const isAdjacent = Math.abs(enemy.x - player.x) <= 1 && Math.abs(enemy.y - player.y) <= 1;
+        if (isAdjacent) {
+          hitCount++;
+          const remHp = enemy.hp - cleaveDmg;
+          addFloatingText(enemy.x, enemy.y, `CLEAVE! -${cleaveDmg}`, 'crit');
+          if (remHp <= 0) {
+            slainCount++;
+            totalGold += enemy.goldReward;
+            totalXp += enemy.xpReward;
+          } else {
+            remainingEnemies.push({ ...enemy, hp: remHp });
+          }
+        } else {
+          remainingEnemies.push(enemy);
+        }
+      });
+
+      currentEnemies = remainingEnemies;
+      updatedPlayer.gold += totalGold;
+      updatedPlayer.xp += totalXp;
+
+      if (hitCount > 0) {
+        addLog(`🌪️ [${skill.name}] menebas ${hitCount} monster dengan ${cleaveDmg} damage! (${slainCount} musnah)`, 'attack');
+      } else {
+        addLog(`🌪️ [${skill.name}] berputar menebas angin kosong!`, 'attack');
+      }
+
+      const lvlRes = checkLevelUp(
+        updatedPlayer.xp,
+        updatedPlayer.level,
+        updatedPlayer.xpToNextLevel,
+        updatedPlayer.statPoints
+      );
+      updatedPlayer.xp = lvlRes.newXp;
+      updatedPlayer.level = lvlRes.newLevel;
+      updatedPlayer.xpToNextLevel = lvlRes.newXpReq;
+      updatedPlayer.statPoints = lvlRes.newStatPoints;
+      if (lvlRes.leveledUp) {
+        updatedPlayer.hp = updatedPlayer.maxHp;
+        updatedPlayer.mp = updatedPlayer.maxMp;
+      }
+    } else if (skill.type === 'fireball') {
+      // Fireball: finds nearest enemy within range 4
+      let closestEnemy: Enemy | null = null;
+      let closestDist = 999;
+      currentEnemies.forEach(enemy => {
+        const dist = Math.hypot(enemy.x - player.x, enemy.y - player.y);
+        if (dist <= 4.2 && dist < closestDist) {
+          closestDist = dist;
+          closestEnemy = enemy;
+        }
+      });
+
+      if (!closestEnemy) {
+        sfx.playError();
+        updatedPlayer.mp += skill.mpCost;
+        addLog('⚠️ Tidak ada musuh dalam jangkauan 4 petak untuk diserang Bola Api!', 'system');
+        setPlayer(updatedPlayer);
+        return;
+      }
+
+      sfx.playFireball();
+      setIsShaking(true);
+      setTimeout(() => setIsShaking(false), 220);
+
+      const targetEnemy = closestEnemy as Enemy;
+      const fireballDmg = Math.round(totalAtk * 2.5) + (player.level * 2);
+      const remHp = targetEnemy.hp - fireballDmg;
+
+      addFloatingText(targetEnemy.x, targetEnemy.y, `🔥 -${fireballDmg}`, 'crit');
+      addLog(`🔥 [${skill.name}] menghanguskan ${targetEnemy.name} dengan ${fireballDmg} damage sihir!`, 'attack');
+
+      if (remHp <= 0) {
+        currentEnemies = currentEnemies.filter(e => e.id !== targetEnemy.id);
+        updatedPlayer.gold += targetEnemy.goldReward;
+        updatedPlayer.xp += targetEnemy.xpReward;
+        addFloatingText(targetEnemy.x, targetEnemy.y, `${targetEnemy.goldReward}G`, 'gold');
+        addFloatingText(player.x, player.y, `${targetEnemy.xpReward}XP`, 'xp');
+        addLog(`💀 ${targetEnemy.name} terbakar hangus menjadi abu!`, 'system');
+
+        const lvlRes = checkLevelUp(
+          updatedPlayer.xp,
+          updatedPlayer.level,
+          updatedPlayer.xpToNextLevel,
+          updatedPlayer.statPoints
+        );
+        updatedPlayer.xp = lvlRes.newXp;
+        updatedPlayer.level = lvlRes.newLevel;
+        updatedPlayer.xpToNextLevel = lvlRes.newXpReq;
+        updatedPlayer.statPoints = lvlRes.newStatPoints;
+        if (lvlRes.leveledUp) {
+          updatedPlayer.hp = updatedPlayer.maxHp;
+          updatedPlayer.mp = updatedPlayer.maxMp;
+        }
+      } else {
+        currentEnemies = currentEnemies.map(e => e.id === targetEnemy.id ? { ...e, hp: remHp } : e);
+      }
+    } else if (skill.type === 'heal') {
+      // Holy Heal: heals 12 HP
+      sfx.playMagic();
+      sfx.playHeal();
+      const healAmount = 12;
+      updatedPlayer.hp = Math.min(updatedPlayer.maxHp, updatedPlayer.hp + healAmount);
+      addFloatingText(player.x, player.y, `+${healAmount} HP`, 'heal');
+      addLog(`✨ Merapalkan [${skill.name}]! Memulihkan ${healAmount} HP seketika.`, 'heal');
+    } else if (skill.type === 'thunder') {
+      // Thunder: blasts all enemies on floor
+      sfx.playThunder();
+      setIsShaking(true);
+      setTimeout(() => setIsShaking(false), 350);
+
+      const thunderDmg = Math.round(totalAtk * 2.0);
+      let hitCount = 0;
+      let slainCount = 0;
+      let totalGold = 0;
+      let totalXp = 0;
+
+      const remainingEnemies: Enemy[] = [];
+      currentEnemies.forEach(enemy => {
+        hitCount++;
+        const remHp = enemy.hp - thunderDmg;
+        addFloatingText(enemy.x, enemy.y, `⚡ -${thunderDmg}`, 'crit');
+        if (remHp <= 0) {
+          slainCount++;
+          totalGold += enemy.goldReward;
+          totalXp += enemy.xpReward;
+        } else {
+          remainingEnemies.push({ ...enemy, hp: remHp });
+        }
+      });
+
+      currentEnemies = remainingEnemies;
+      updatedPlayer.gold += totalGold;
+      updatedPlayer.xp += totalXp;
+
+      if (hitCount > 0) {
+        addLog(`⚡ [${skill.name}] menyambar ${hitCount} monster di lantai dungeon! (${slainCount} musnah)`, 'attack');
+      } else {
+        addLog(`⚡ [${skill.name}] menggelegar namun dungeon sedang sepi!`, 'attack');
+      }
+
+      const lvlRes = checkLevelUp(
+        updatedPlayer.xp,
+        updatedPlayer.level,
+        updatedPlayer.xpToNextLevel,
+        updatedPlayer.statPoints
+      );
+      updatedPlayer.xp = lvlRes.newXp;
+      updatedPlayer.level = lvlRes.newLevel;
+      updatedPlayer.xpToNextLevel = lvlRes.newXpReq;
+      updatedPlayer.statPoints = lvlRes.newStatPoints;
+      if (lvlRes.leveledUp) {
+        updatedPlayer.hp = updatedPlayer.maxHp;
+        updatedPlayer.mp = updatedPlayer.maxMp;
+      }
+    }
+
+    // Execute enemy turn counter-attack
+    const enemyTurnResult = executeEnemyTurn(
+      currentEnemies,
+      { x: player.x, y: player.y },
+      levelData.walls,
+      levelData.exit,
+      updatedPlayer
+    );
+
+    updatedPlayer.hp = enemyTurnResult.resultingHp;
+
+    if (enemyTurnResult.playerDefeated) {
+      sfx.playGameOver();
+      setIsGameOver(true);
+      addLog('💀 Nyawa ksatria telah habis! Anda gugur di dalam dungeon!', 'damage');
+    }
+
+    setPlayer(updatedPlayer);
+    setLevelData(prev => ({ ...prev, enemies: enemyTurnResult.nextEnemies }));
+  }, [
+    isGameOver,
+    isVictoryModalOpen,
+    isInventoryOpen,
+    isCharacterOpen,
+    isShopOpen,
+    player,
+    levelData,
+    getPlayerCombatStats,
+    checkLevelUp,
+    executeEnemyTurn,
+    addFloatingText,
+    addLog
+  ]);
+
+  // Shop Transactions
+  const handleBuyItem = useCallback((item: Item) => {
+    if (player.gold < item.value) {
+      addLog('⚠️ Koin emas tidak mencukupi untuk membeli barang ini!', 'system');
+      return;
+    }
+    if (player.inventory.length >= 12) {
+      addLog('⚠️ Tas sudah penuh! Tidak bisa menambah barang baru.', 'system');
+      return;
+    }
+
+    setPlayer(prev => ({
+      ...prev,
+      gold: prev.gold - item.value,
+      inventory: [...prev.inventory, item]
+    }));
+
+    setLevelData(prev => {
+      if (!prev.merchant) return prev;
+      return {
+        ...prev,
+        merchant: {
+          ...prev.merchant,
+          stock: prev.merchant.stock.filter(i => i.id !== item.id)
+        }
+      };
+    });
+
+    addFloatingText(player.x, player.y, `-${item.value}G`, 'gold');
+    addLog(`🪙 Berhasil membeli [${item.name}] seharga ${item.value} koin emas!`, 'item');
+  }, [player.gold, player.inventory.length, player.x, player.y, addFloatingText, addLog]);
+
+  const handleSellItem = useCallback((item: Item) => {
+    const sellPrice = Math.max(1, Math.floor(item.value * 0.6));
+
+    setPlayer(prev => ({
+      ...prev,
+      gold: prev.gold + sellPrice,
+      inventory: prev.inventory.filter(i => i.id !== item.id)
+    }));
+
+    addFloatingText(player.x, player.y, `+${sellPrice}G`, 'gold');
+    addLog(`💰 Berhasil menjual [${item.name}] kepada pedagang (+${sellPrice} Emas)!`, 'item');
+  }, [player.x, player.y, addFloatingText, addLog]);
+
   // Wait / Rest Turn action (Spacebar)
   const handleWaitTurn = useCallback(() => {
-    if (isGameOver || isVictoryModalOpen || isInventoryOpen || isCharacterOpen) return;
+    if (isGameOver || isVictoryModalOpen || isInventoryOpen || isCharacterOpen || isShopOpen) return;
     sfx.playStep();
 
     let updatedPlayer = { ...player };
@@ -638,6 +941,7 @@ export default function App() {
     isVictoryModalOpen, 
     isInventoryOpen, 
     isCharacterOpen, 
+    isShopOpen,
     player, 
     levelData, 
     executeEnemyTurn, 
@@ -774,8 +1078,43 @@ export default function App() {
         return;
       }
 
+      if (e.code === 'KeyT') {
+        if (levelData.merchant) {
+          setIsShopOpen(prev => !prev);
+        } else {
+          addLog('⚠️ Tidak ada pedagang di lantai dungeon ini!', 'system');
+        }
+        return;
+      }
+
       if (e.code === 'KeyH') {
         handleQuickHeal();
+        return;
+      }
+
+      if (e.code === 'KeyM') {
+        handleQuickMana();
+        return;
+      }
+
+      if (e.code === 'Digit1') {
+        const skill = PLAYER_SKILLS.find(s => s.shortcut === '1');
+        if (skill) handleUseSkill(skill);
+        return;
+      }
+      if (e.code === 'Digit2') {
+        const skill = PLAYER_SKILLS.find(s => s.shortcut === '2');
+        if (skill) handleUseSkill(skill);
+        return;
+      }
+      if (e.code === 'Digit3') {
+        const skill = PLAYER_SKILLS.find(s => s.shortcut === '3');
+        if (skill) handleUseSkill(skill);
+        return;
+      }
+      if (e.code === 'Digit4') {
+        const skill = PLAYER_SKILLS.find(s => s.shortcut === '4');
+        if (skill) handleUseSkill(skill);
         return;
       }
 
@@ -797,9 +1136,18 @@ export default function App() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [movePlayer, handleWaitTurn, handleQuickHeal]);
+  }, [
+    movePlayer, 
+    handleWaitTurn, 
+    handleQuickHeal, 
+    handleQuickMana, 
+    handleUseSkill, 
+    levelData.merchant, 
+    addLog
+  ]);
 
   const hasPotion = player.inventory.some(i => i.effect === 'heal' || i.effect === 'full_heal');
+  const hasManaPotion = player.inventory.some(i => i.effect === 'mana' || i.effect === 'full_heal');
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between items-center py-2 px-1 relative select-none">
@@ -810,6 +1158,7 @@ export default function App() {
       <HUD
         player={player}
         floor={floor}
+        merchantPresent={Boolean(levelData.merchant)}
         isMuted={isMuted}
         isBgmOn={isBgmOn}
         isCrtOn={isCrtOn}
@@ -818,6 +1167,7 @@ export default function App() {
         onToggleCrt={handleToggleCrt}
         onOpenInventory={() => setIsInventoryOpen(true)}
         onOpenCharacter={() => setIsCharacterOpen(true)}
+        onOpenShop={() => setIsShopOpen(true)}
       />
 
       {/* Combat Event Log Box */}
@@ -831,8 +1181,23 @@ export default function App() {
           floatingTexts={floatingTexts}
           isShaking={isShaking}
           isHit={isHit}
+          onTileClick={(x, y) => {
+            if (levelData.merchant && levelData.merchant.x === x && levelData.merchant.y === y) {
+              sfx.playCoin();
+              setIsShopOpen(true);
+            }
+          }}
         />
       </main>
+
+      {/* Skill Bar */}
+      <div className="w-full max-w-lg mx-auto px-2" style={{ maxWidth: '480px' }}>
+        <SkillBar
+          playerMp={player.mp}
+          disabled={isGameOver || isVictoryModalOpen || isInventoryOpen || isCharacterOpen || isShopOpen}
+          onUseSkill={handleUseSkill}
+        />
+      </div>
 
       {/* Bottom Controls & D-Pad */}
       <Controls
@@ -840,8 +1205,10 @@ export default function App() {
         onMove={movePlayer}
         onWaitTurn={handleWaitTurn}
         onQuickHeal={handleQuickHeal}
+        onQuickMana={handleQuickMana}
         onOpenInventory={() => setIsInventoryOpen(true)}
         hasPotion={hasPotion}
+        hasManaPotion={hasManaPotion}
       />
 
       {/* Modals */}
@@ -861,6 +1228,16 @@ export default function App() {
         player={player}
         onClose={() => setIsCharacterOpen(false)}
         onAllocateStat={handleAllocateStat}
+      />
+
+      <ShopModal
+        isOpen={isShopOpen}
+        merchant={levelData.merchant || null}
+        playerGold={player.gold}
+        playerInventory={player.inventory}
+        onClose={() => setIsShopOpen(false)}
+        onBuyItem={handleBuyItem}
+        onSellItem={handleSellItem}
       />
 
       <GameOverModal

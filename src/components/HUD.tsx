@@ -11,12 +11,14 @@ import {
   Tv, 
   Sparkles,
   Heart,
-  Zap
+  Zap,
+  Store
 } from 'lucide-react';
 
 interface Props {
   player: Player;
   floor: number;
+  merchantPresent?: boolean;
   isMuted: boolean;
   isBgmOn: boolean;
   isCrtOn: boolean;
@@ -25,11 +27,13 @@ interface Props {
   onToggleCrt: () => void;
   onOpenInventory: () => void;
   onOpenCharacter: () => void;
+  onOpenShop?: () => void;
 }
 
 export const HUD: React.FC<Props> = ({
   player,
   floor,
+  merchantPresent,
   isMuted,
   isBgmOn,
   isCrtOn,
@@ -37,7 +41,8 @@ export const HUD: React.FC<Props> = ({
   onToggleBgm,
   onToggleCrt,
   onOpenInventory,
-  onOpenCharacter
+  onOpenCharacter,
+  onOpenShop
 }) => {
   const hpPercent = Math.max(0, Math.min(100, (player.hp / player.maxHp) * 100));
   const mpPercent = Math.max(0, Math.min(100, (player.mp / player.maxMp) * 100));
@@ -117,6 +122,17 @@ export const HUD: React.FC<Props> = ({
                 className="pixel-font text-[8px] bg-red-600 hover:bg-red-500 text-white px-2 py-1 rounded animate-pulse cursor-pointer flex items-center gap-1 border border-red-300"
               >
                 <Sparkles className="w-2.5 h-2.5" /> +{player.statPoints} STAT!
+              </button>
+            )}
+
+            {merchantPresent && onOpenShop && (
+              <button
+                onClick={onOpenShop}
+                className="pixel-btn pixel-btn-gold text-[9px] py-1 px-2.5 animate-pulse"
+                title="Buka Toko Pedagang (T)"
+              >
+                <Store className="w-3.5 h-3.5 text-amber-200" />
+                <span>TOKO</span>
               </button>
             )}
 

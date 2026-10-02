@@ -230,6 +230,30 @@ export const PixelStairs: React.FC = () => (
   </svg>
 );
 
+export const PixelMerchant: React.FC = () => (
+  <svg viewBox="0 0 16 16" className="w-full h-full drop-shadow-md select-none animate-bounce-subtle">
+    {/* Backpack on back */}
+    <rect x="2" y="5" width="4" height="7" fill="#78350f" rx="1" />
+    <rect x="2" y="4" width="3" height="2" fill="#92400e" />
+    {/* Cloak / Hood */}
+    <rect x="5" y="2" width="7" height="4" fill="#065f46" />
+    <rect x="4" y="5" width="9" height="8" fill="#047857" />
+    <rect x="3" y="11" width="11" height="3" fill="#064e3b" />
+    {/* Dark Hood Opening */}
+    <rect x="6" y="3" width="5" height="3" fill="#022c22" />
+    {/* Friendly glowing yellow eyes / spectacles */}
+    <rect x="7" y="4" width="1" height="1" fill="#facc15" />
+    <rect x="9" y="4" width="1" height="1" fill="#facc15" />
+    {/* Merchant Golden Lantern on Staff/Side */}
+    <rect x="13" y="5" width="1" height="7" fill="#b45309" />
+    <rect x="12" y="6" width="3" height="3" fill="#fbbf24" className="animate-pulse" />
+    <rect x="13" y="7" width="1" height="1" fill="#ffffff" />
+    {/* Coin purse on belt */}
+    <rect x="8" y="9" width="3" height="3" fill="#d97706" rx="0.5" />
+    <rect x="9" y="10" width="1" height="1" fill="#fef08a" />
+  </svg>
+);
+
 export const PixelWall: React.FC = () => (
   <div className="w-full h-full bg-slate-900 border border-slate-700/80 relative overflow-hidden">
     <div className="absolute top-0 left-0 right-0 h-1 bg-slate-600/40"></div>
@@ -321,12 +345,13 @@ export const ItemIcon: React.FC<{ icon: string; className?: string }> = ({ icon,
     case 'potion_red':
     case 'potion_red_big':
     case 'potion_blue':
+    case 'potion_blue_big':
     case 'potion_purple':
     case 'potion_orange':
     case 'potion_green':
       {
         const color = 
-          icon === 'potion_blue' ? '#3b82f6' :
+          icon === 'potion_blue' || icon === 'potion_blue_big' ? '#3b82f6' :
           icon === 'potion_purple' ? '#a855f7' :
           icon === 'potion_orange' ? '#f97316' :
           icon === 'potion_green' ? '#22c55e' : '#ef4444';
@@ -366,3 +391,48 @@ export const ItemIcon: React.FC<{ icon: string; className?: string }> = ({ icon,
       );
   }
 };
+
+export const SkillIcon: React.FC<{ icon: string; className?: string }> = ({ icon, className = "w-5 h-5" }) => {
+  switch (icon) {
+    case 'cleave':
+      return (
+        <svg viewBox="0 0 16 16" className={className}>
+          <path d="M 2 14 L 14 2 M 10 2 L 14 2 L 14 6" stroke="#f87171" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+          <path d="M 4 8 C 8 4 12 6 13 3" stroke="#fca5a5" strokeWidth="1.5" fill="none" />
+        </svg>
+      );
+    case 'fireball':
+      return (
+        <svg viewBox="0 0 16 16" className={className}>
+          <circle cx="8" cy="8" r="5" fill="#ea580c" />
+          <circle cx="8" cy="8" r="3" fill="#facc15" />
+          <rect x="7" y="2" width="2" height="3" fill="#f97316" />
+          <rect x="3" y="6" width="3" height="2" fill="#ef4444" />
+          <rect x="11" y="7" width="3" height="2" fill="#ea580c" />
+          <circle cx="7" cy="7" r="1.5" fill="#fff" />
+        </svg>
+      );
+    case 'holy_heal':
+      return (
+        <svg viewBox="0 0 16 16" className={className}>
+          <rect x="6" y="2" width="4" height="12" fill="#38bdf8" rx="1" />
+          <rect x="2" y="6" width="12" height="4" fill="#38bdf8" rx="1" />
+          <rect x="7" y="3" width="2" height="10" fill="#e0f2fe" />
+          <rect x="3" y="7" width="10" height="2" fill="#e0f2fe" />
+        </svg>
+      );
+    case 'thunder':
+      return (
+        <svg viewBox="0 0 16 16" className={className}>
+          <polygon points="9,1 3,9 8,9 7,15 13,7 8,7" fill="#fbbf24" stroke="#d97706" strokeWidth="0.5" />
+        </svg>
+      );
+    default:
+      return (
+        <svg viewBox="0 0 16 16" className={className}>
+          <circle cx="8" cy="8" r="4" fill="#818cf8" />
+        </svg>
+      );
+  }
+};
+

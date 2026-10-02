@@ -6,7 +6,8 @@ import {
   PixelWall, 
   PixelStairs, 
   PixelChest, 
-  PixelShrine 
+  PixelShrine,
+  PixelMerchant
 } from './PixelSprites';
 import { FloatingTextViewer } from './FloatingText';
 import { GRID_SIZE } from '../utils/dungeonGenerator';
@@ -53,6 +54,7 @@ export const DungeonGrid: React.FC<Props> = ({
             const enemy = levelData.enemies.find(e => e.x === x && e.y === y);
             const chest = levelData.chests.find(c => c.x === x && c.y === y);
             const shrine = levelData.shrines.find(s => s.x === x && s.y === y);
+            const isMerchant = levelData.merchant && levelData.merchant.x === x && levelData.merchant.y === y;
 
             // Distance from player (fog/lighting effect)
             const dist = Math.hypot(player.x - x, player.y - y);
@@ -94,6 +96,18 @@ export const DungeonGrid: React.FC<Props> = ({
                 {/* Shrine */}
                 {shrine && !isHero && (
                   <PixelShrine used={shrine.used} type={shrine.type} />
+                )}
+
+                {/* Merchant NPC */}
+                {isMerchant && !isHero && (
+                  <div className="w-full h-full relative flex flex-col items-center justify-center p-0.5">
+                    <div className="absolute top-0.5 bg-amber-500 text-slate-950 px-1 rounded-[2px] pixel-font text-[6px] font-bold z-10 shadow">
+                      TOKO
+                    </div>
+                    <div className="w-4/5 h-4/5 mt-1.5">
+                      <PixelMerchant />
+                    </div>
+                  </div>
                 )}
 
                 {/* Enemy with Mini HP Bar */}

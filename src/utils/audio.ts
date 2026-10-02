@@ -273,6 +273,138 @@ class RetroAudio {
     }
   }
 
+  public playMagic() {
+    if (this.muted || !this.ctx) return;
+    try {
+      const notes = [587.33, 739.99, 880, 1174.66];
+      notes.forEach((freq, idx) => {
+        if (!this.ctx) return;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sine';
+        const start = this.ctx.currentTime + idx * 0.05;
+        osc.frequency.setValueAtTime(freq, start);
+        gain.gain.setValueAtTime(0.08, start);
+        gain.gain.linearRampToValueAtTime(0, start + 0.15);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(start);
+        osc.stop(start + 0.15);
+      });
+    } catch {
+      // safe
+    }
+  }
+
+  public playFireball() {
+    if (this.muted || !this.ctx) return;
+    try {
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(350, this.ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(60, this.ctx.currentTime + 0.35);
+      gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
+      gain.gain.linearRampToValueAtTime(0, this.ctx.currentTime + 0.35);
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start();
+      osc.stop(this.ctx.currentTime + 0.35);
+    } catch {
+      // safe
+    }
+  }
+
+  public playThunder() {
+    if (this.muted || !this.ctx) return;
+    try {
+      const osc1 = this.ctx.createOscillator();
+      const osc2 = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc1.type = 'sawtooth';
+      osc2.type = 'square';
+      osc1.frequency.setValueAtTime(800, this.ctx.currentTime);
+      osc1.frequency.exponentialRampToValueAtTime(40, this.ctx.currentTime + 0.4);
+      osc2.frequency.setValueAtTime(120, this.ctx.currentTime);
+      osc2.frequency.exponentialRampToValueAtTime(30, this.ctx.currentTime + 0.4);
+      gain.gain.setValueAtTime(0.22, this.ctx.currentTime);
+      gain.gain.linearRampToValueAtTime(0, this.ctx.currentTime + 0.4);
+      osc1.connect(gain);
+      osc2.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc1.start();
+      osc2.start();
+      osc1.stop(this.ctx.currentTime + 0.4);
+      osc2.stop(this.ctx.currentTime + 0.4);
+    } catch {
+      // safe
+    }
+  }
+
+  public playBuy() {
+    if (this.muted || !this.ctx) return;
+    try {
+      const notes = [523.25, 659.25, 1046.5];
+      notes.forEach((freq, idx) => {
+        if (!this.ctx) return;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'triangle';
+        const start = this.ctx.currentTime + idx * 0.06;
+        osc.frequency.setValueAtTime(freq, start);
+        gain.gain.setValueAtTime(0.1, start);
+        gain.gain.linearRampToValueAtTime(0, start + 0.12);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(start);
+        osc.stop(start + 0.12);
+      });
+    } catch {
+      // safe
+    }
+  }
+
+  public playSell() {
+    if (this.muted || !this.ctx) return;
+    try {
+      const notes = [783.99, 987.77, 1318.51];
+      notes.forEach((freq, idx) => {
+        if (!this.ctx) return;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'square';
+        const start = this.ctx.currentTime + idx * 0.05;
+        osc.frequency.setValueAtTime(freq, start);
+        gain.gain.setValueAtTime(0.08, start);
+        gain.gain.linearRampToValueAtTime(0, start + 0.1);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(start);
+        osc.stop(start + 0.1);
+      });
+    } catch {
+      // safe
+    }
+  }
+
+  public playError() {
+    if (this.muted || !this.ctx) return;
+    try {
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(130, this.ctx.currentTime);
+      gain.gain.setValueAtTime(0.1, this.ctx.currentTime);
+      gain.gain.linearRampToValueAtTime(0, this.ctx.currentTime + 0.15);
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start();
+      osc.stop(this.ctx.currentTime + 0.15);
+    } catch {
+      // safe
+    }
+  }
+
   // --- Background Chiptune Music Generator ---
   public toggleBGM(): boolean {
     if (this.bgmInterval) {
